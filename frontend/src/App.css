@@ -1,0 +1,28 @@
+/* App.css - Minimal styles for App component */
+
+.App {
+  min-height: 100vh;
+  background-color: #f9fafb;
+}
+
+/* Basic utility classes if Tailwind fails to load */
+.min-h-screen { min-height: 100vh; }
+.bg-gray-50 { background-color: #f9fafb; }
+.bg-white { background-color: white; }
+.text-center { text-align: center; }
+.flex { display: flex; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.p-4 { padding: 1rem; }
+.p-6 { padding: 1.5rem; }
+.px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+.py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+.rounded-lg { border-radius: 0.5rem; }
+.shadow-lg { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+.text-blue-600 { color: #2563eb; }
+.bg-blue-600 { background-color: #2563eb; }
+.text-white { color: white; }
+.font-semibold { font-weight: 600; }
+.transition-colors { transition-property: color, background-color; transition-duration: 0.15s; }
+.hover\:bg-blue-700:hover { background-color: #1d4ed8; }
+.cursor-pointer { cursor: pointer; }
