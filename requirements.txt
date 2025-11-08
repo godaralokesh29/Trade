@@ -1,5 +1,5 @@
 fastapi
 uvicorn[standard]
 google-generativeai
-pymongopip install -r requirements.txt
+pymongo
 python-dotenv
