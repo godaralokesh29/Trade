@@ -141,6 +141,17 @@ const TradingDashboard = () => {
     return statusColors[normalizedStatus] || 'bg-gray-500 text-white';
   };
 
+  // Helper function to get confidence percentage
+  const getConfidencePercent = (hypothesis) => {
+    if (hypothesis?.confidence !== undefined) {
+      return hypothesis.confidence;
+    }
+    if (hypothesis?.confidence_score !== undefined) {
+      return Math.round(hypothesis.confidence_score * 100);
+    }
+    return 50; // Default
+  };
+
   const getConfidenceColor = (confidence) => {
     if (confidence >= 70) return 'bg-gradient-to-r from-green-500 to-emerald-600';
     if (confidence >= 50) return 'bg-gradient-to-r from-yellow-500 to-orange-500';
@@ -349,7 +360,7 @@ const TradingDashboard = () => {
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-3xl font-bold text-gray-800">{selectedHypothesis.confidence}%</div>
+                    <div className="text-3xl font-bold text-gray-800">{getConfidencePercent(selectedHypothesis)}%</div>
                     <div className="text-sm text-gray-500">Confidence Score</div>
                   </div>
                 </div>
@@ -361,7 +372,7 @@ const TradingDashboard = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-red-700 text-sm font-bold uppercase tracking-wide mb-1">Contradictions</div>
-                      <div className="text-3xl font-black text-red-600">{selectedHypothesis.contradictions}</div>
+                      <div className="text-3xl font-black text-red-600">{selectedHypothesis.contradictions || 0}</div>
                     </div>
                     <div className="w-12 h-12 bg-red-200 rounded-xl flex items-center justify-center">
                       <span className="text-red-600 text-2xl">❌</span>
@@ -378,7 +389,7 @@ const TradingDashboard = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-green-700 text-sm font-bold uppercase tracking-wide mb-1">Confirmations</div>
-                      <div className="text-3xl font-black text-green-600">{selectedHypothesis.confirmations}</div>
+                      <div className="text-3xl font-black text-green-600">{selectedHypothesis.confirmations || 0}</div>
                     </div>
                     <div className="w-12 h-12 bg-green-200 rounded-xl flex items-center justify-center">
                       <span className="text-green-600 text-2xl">✅</span>
@@ -395,7 +406,7 @@ const TradingDashboard = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-blue-700 text-sm font-bold uppercase tracking-wide mb-1">Confidence</div>
-                      <div className="text-3xl font-black text-blue-600">{selectedHypothesis.confidence}%</div>
+                      <div className="text-3xl font-black text-blue-600">{getConfidencePercent(selectedHypothesis)}%</div>
                     </div>
                     <div className="w-12 h-12 bg-blue-200 rounded-xl flex items-center justify-center">
                       <span className="text-blue-600 text-2xl">🎯</span>
@@ -403,8 +414,8 @@ const TradingDashboard = () => {
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
                     <div
-                      className={`h-2 rounded-full transition-all duration-700 ${getConfidenceColor(selectedHypothesis.confidence)}`}
-                      style={{ width: `${selectedHypothesis.confidence}%` }}
+                      className={`h-2 rounded-full transition-all duration-700 ${getConfidenceColor(getConfidencePercent(selectedHypothesis))}`}
+                      style={{ width: `${getConfidencePercent(selectedHypothesis)}%` }}
                     ></div>
                   </div>
                 </div>
@@ -456,34 +467,43 @@ const TradingDashboard = () => {
                         <span className="w-8 h-8 bg-red-200 rounded-lg flex items-center justify-center mr-3">
                           <span className="text-red-600">❌</span>
                         </span>
-                        Contradictions ({selectedHypothesis.contradictions})
+                        Contradictions ({selectedHypothesis.contradictions || 0})
                       </h3>
                       <div className="space-y-4 max-h-96 overflow-y-auto">
-                        {selectedHypothesis.contradictions_detail?.slice(0, 5).map((item, index) => (
-                          <div key={index} className="bg-white rounded-xl p-4 border-l-4 border-red-500 shadow-sm hover:shadow-md transition-shadow">
-                            {/* Display full quote without truncation */}
-                            <p className="text-gray-800 mb-3 text-sm leading-relaxed font-medium">
-                              <span dangerouslySetInnerHTML={{ __html: `"${cleanMarkdownText(item.quote)}"` }} />
-                            </p>
-                            <p className="text-xs text-gray-600 mb-3">
-                              <strong className="text-red-600">Analysis:</strong>
-                              <span dangerouslySetInnerHTML={{ __html: cleanMarkdownText(item.reason) }} />
-                            </p>
-                            <div className="flex justify-between items-center text-xs">
-                              <span className="text-gray-500 truncate mr-2">{item.source}</span>
-                              <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                item.strength === 'Strong' 
-                                  ? 'bg-red-100 text-red-800' 
-                                  : 'bg-orange-100 text-orange-800'
-                              }`}>
-                                {item.strength}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                        {selectedHypothesis.contradictions > 5 && (
-                          <div className="text-center text-red-600 text-sm font-semibold py-3 bg-red-100 rounded-lg">
-                            + {selectedHypothesis.contradictions - 5} more contradictions
+                        {selectedHypothesis.contradictions_detail && selectedHypothesis.contradictions_detail.length > 0 ? (
+                          <>
+                            {selectedHypothesis.contradictions_detail.slice(0, 5).map((item, index) => (
+                              <div key={index} className="bg-white rounded-xl p-4 border-l-4 border-red-500 shadow-sm hover:shadow-md transition-shadow">
+                                {/* Display full quote without truncation */}
+                                <p className="text-gray-800 mb-3 text-sm leading-relaxed font-medium">
+                                  <span dangerouslySetInnerHTML={{ __html: `"${cleanMarkdownText(item.quote || '')}"` }} />
+                                </p>
+                                <p className="text-xs text-gray-600 mb-3">
+                                  <strong className="text-red-600">Analysis:</strong>
+                                  <span dangerouslySetInnerHTML={{ __html: cleanMarkdownText(item.reason || '') }} />
+                                </p>
+                                <div className="flex justify-between items-center text-xs">
+                                  <span className="text-gray-500 truncate mr-2">{item.source || 'Unknown'}</span>
+                                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                    item.strength === 'Strong' 
+                                      ? 'bg-red-100 text-red-800' 
+                                      : 'bg-orange-100 text-orange-800'
+                                  }`}>
+                                    {item.strength || 'Medium'}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                            {selectedHypothesis.contradictions > 5 && (
+                              <div className="text-center text-red-600 text-sm font-semibold py-3 bg-red-100 rounded-lg">
+                                + {selectedHypothesis.contradictions - 5} more contradictions
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="text-center text-gray-500 py-8">
+                            <p className="text-sm">No contradictions found</p>
+                            <p className="text-xs mt-2 text-gray-400">This hypothesis has no identified contradictions</p>
                           </div>
                         )}
                       </div>
@@ -495,33 +515,46 @@ const TradingDashboard = () => {
                         <span className="w-8 h-8 bg-green-200 rounded-lg flex items-center justify-center mr-3">
                           <span className="text-green-600">✅</span>
                         </span>
-                        Confirmations ({selectedHypothesis.confirmations})
+                        Confirmations ({selectedHypothesis.confirmations || 0})
                       </h3>
                       <div className="space-y-4 max-h-96 overflow-y-auto">
-                        {selectedHypothesis.confirmations_detail?.slice(0, 5).map((item, index) => (
-                          <div key={index} className="bg-white rounded-xl p-4 border-l-4 border-green-500 shadow-sm hover:shadow-md transition-shadow">
-                            <p className="text-gray-800 mb-3 text-sm leading-relaxed font-medium">
-                              <span dangerouslySetInnerHTML={{ __html: `"${cleanMarkdownText(extractQuoteAndReason(item.quote).quote)}"` }} />
-                            </p>
-                            <p className="text-xs text-gray-600 mb-3">
-                              <strong className="text-green-600">Analysis:</strong>
-                              <span dangerouslySetInnerHTML={{ __html: cleanMarkdownText(extractQuoteAndReason(item.reason).reason) }} />
-                            </p>
-                            <div className="flex justify-between items-center text-xs">
-                              <span className="text-gray-500 truncate mr-2">{item.source}</span>
-                              <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                item.strength === 'Strong'
-                                  ? 'bg-green-100 text-green-800'
-                                  : 'bg-yellow-100 text-yellow-800'
-                              }`}>
-                                {item.strength}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                        {selectedHypothesis.confirmations > 5 && (
-                          <div className="text-center text-green-600 text-sm font-semibold py-3 bg-green-100 rounded-lg">
-                            + {selectedHypothesis.confirmations - 5} more confirmations
+                        {selectedHypothesis.confirmations_detail && selectedHypothesis.confirmations_detail.length > 0 ? (
+                          <>
+                            {selectedHypothesis.confirmations_detail.slice(0, 5).map((item, index) => {
+                              const quoteData = item.quote ? extractQuoteAndReason(item.quote) : { quote: '' };
+                              const reasonData = item.reason ? extractQuoteAndReason(item.reason) : { reason: '' };
+                              return (
+                                <div key={index} className="bg-white rounded-xl p-4 border-l-4 border-green-500 shadow-sm hover:shadow-md transition-shadow">
+                                  <p className="text-gray-800 mb-3 text-sm leading-relaxed font-medium">
+                                    <span dangerouslySetInnerHTML={{ __html: `"${cleanMarkdownText(quoteData.quote || item.quote || '')}"` }} />
+                                  </p>
+                                  <p className="text-xs text-gray-600 mb-3">
+                                    <strong className="text-green-600">Analysis:</strong>
+                                    <span dangerouslySetInnerHTML={{ __html: cleanMarkdownText(reasonData.reason || item.reason || '') }} />
+                                  </p>
+                                  <div className="flex justify-between items-center text-xs">
+                                    <span className="text-gray-500 truncate mr-2">{item.source || 'Unknown'}</span>
+                                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                      item.strength === 'Strong'
+                                        ? 'bg-green-100 text-green-800'
+                                        : 'bg-yellow-100 text-yellow-800'
+                                    }`}>
+                                      {item.strength || 'Medium'}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {selectedHypothesis.confirmations > 5 && (
+                              <div className="text-center text-green-600 text-sm font-semibold py-3 bg-green-100 rounded-lg">
+                                + {selectedHypothesis.confirmations - 5} more confirmations
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="text-center text-gray-500 py-8">
+                            <p className="text-sm">No confirmations found</p>
+                            <p className="text-xs mt-2 text-gray-400">This hypothesis has no identified confirmations</p>
                           </div>
                         )}
                       </div>

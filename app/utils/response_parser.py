@@ -130,8 +130,30 @@ def parse_contradictions_response(response_text: str) -> List[Dict]:
     """Parse contradictions from agent response."""
     contradictions = []
     
-    # First, try to parse as JSON array
+    # Clean the response text
+    response_text = response_text.strip()
+    
+    # First, try to parse as complete JSON array
     try:
+        # Try parsing the entire response as JSON
+        parsed = json.loads(response_text)
+        if isinstance(parsed, list):
+            for item in parsed:
+                if isinstance(item, dict) and 'quote' in item:
+                    contradictions.append({
+                        "quote": str(item.get("quote", ""))[:400],
+                        "reason": str(item.get("reason", "Market analysis identifies this challenge"))[:400],
+                        "source": str(item.get("source", "Market Analysis"))[:40],
+                        "strength": str(item.get("strength", "Medium"))
+                    })
+            if contradictions:
+                return contradictions[:5]
+    except:
+        pass
+    
+    # Second, try to find JSON array in the text
+    try:
+        # Look for JSON array pattern (more flexible)
         json_match = re.search(r'\[\s*\{.*?\}\s*\]', response_text, re.DOTALL)
         if json_match:
             parsed = json.loads(json_match.group())
@@ -139,23 +161,46 @@ def parse_contradictions_response(response_text: str) -> List[Dict]:
                 for item in parsed:
                     if isinstance(item, dict) and 'quote' in item:
                         contradictions.append({
-                            "quote": item.get("quote", "")[:400],
-                            "reason": item.get("reason", "Market analysis identifies this challenge")[:400],
-                            "source": item.get("source", "Market Analysis")[:40],
-                            "strength": item.get("strength", "Medium")
+                            "quote": str(item.get("quote", ""))[:400],
+                            "reason": str(item.get("reason", "Market analysis identifies this challenge"))[:400],
+                            "source": str(item.get("source", "Market Analysis"))[:40],
+                            "strength": str(item.get("strength", "Medium"))
                         })
-                return contradictions[:5]  # Limit to 5
+                if contradictions:
+                    return contradictions[:5]
     except:
         pass
     
-    # Fallback: Parse text (from reference)
+    # Third, try to find individual JSON objects
+    try:
+        # Find all JSON objects in the response
+        json_objects = re.findall(r'\{[^{}]*"quote"[^{}]*\}', response_text, re.DOTALL)
+        for obj_str in json_objects:
+            try:
+                parsed = json.loads(obj_str)
+                if isinstance(parsed, dict) and 'quote' in parsed:
+                    contradictions.append({
+                        "quote": str(parsed.get("quote", ""))[:400],
+                        "reason": str(parsed.get("reason", "Market analysis identifies this challenge"))[:400],
+                        "source": str(parsed.get("source", "Market Analysis"))[:40],
+                        "strength": str(parsed.get("strength", "Medium"))
+                    })
+            except:
+                continue
+        if contradictions:
+            return contradictions[:5]
+    except:
+        pass
+    
+    # Fallback: Parse text for risk indicators
     lines = response_text.split('\n')
     risk_indicators = ['risk', 'challenge', 'concern', 'pressure', 'decline', 
-                       'competition', 'regulation', 'slowdown', 'headwind']
+                       'competition', 'regulation', 'slowdown', 'headwind', 'threat',
+                       'weakness', 'vulnerability', 'uncertainty', 'volatility']
     
     for line in lines:
-        line = line.strip().strip('*-• ')
-        if len(line) < 30: continue
+        line = line.strip().strip('*-• "')
+        if len(line) < 20: continue
         
         if any(indicator in line.lower() for indicator in risk_indicators):
             contradictions.append({
@@ -164,44 +209,103 @@ def parse_contradictions_response(response_text: str) -> List[Dict]:
                 "source": "Text Analysis",
                 "strength": "Medium"
             })
+            if len(contradictions) >= 5:
+                break
     
-    return contradictions[:5]
+    return contradictions[:5] if contradictions else []
 
 def parse_synthesis_response(response_text: str, contradictions: List[Dict]) -> Dict[str, Any]:
     """Parse synthesis response and extract confirmations."""
     
     confirmations = []
     
-    # Try to extract structured confirmations from response (from reference)
+    # Clean the response text
+    response_text = response_text.strip()
+    
+    # First, try to parse as complete JSON object
     try:
-        json_matches = re.findall(r'\{[^}]+\}', response_text)
-        for match in json_matches:
-            try:
-                parsed = json.loads(match)
-                if 'quote' in parsed:
-                    confirmations.append({
-                        "quote": parsed.get("quote", "")[:400],
-                        "reason": parsed.get("reason", "")[:400],
-                        "source": parsed.get("source", "Market Analysis")[:40],
-                        "strength": parsed.get("strength", "Medium")
-                    })
-            except:
-                continue
+        parsed = json.loads(response_text)
+        if isinstance(parsed, dict):
+            # Check if confirmations are in the root
+            if 'confirmations' in parsed and isinstance(parsed['confirmations'], list):
+                for item in parsed['confirmations']:
+                    if isinstance(item, dict) and 'quote' in item:
+                        confirmations.append({
+                            "quote": str(item.get("quote", ""))[:400],
+                            "reason": str(item.get("reason", ""))[:400],
+                            "source": str(item.get("source", "Market Analysis"))[:40],
+                            "strength": str(item.get("strength", "Medium"))
+                        })
+            # Check if confirmations array is directly in the response
+            elif isinstance(parsed, list):
+                for item in parsed:
+                    if isinstance(item, dict) and 'quote' in item:
+                        confirmations.append({
+                            "quote": str(item.get("quote", ""))[:400],
+                            "reason": str(item.get("reason", ""))[:400],
+                            "source": str(item.get("source", "Market Analysis"))[:40],
+                            "strength": str(item.get("strength", "Medium"))
+                        })
     except:
         pass
+    
+    # Second, try to find JSON object with confirmations array
+    if not confirmations:
+        try:
+            # Look for the confirmations array in JSON
+            json_match = re.search(r'"confirmations"\s*:\s*\[\s*\{.*?\}\s*\]', response_text, re.DOTALL)
+            if json_match:
+                # Extract just the array part
+                array_match = re.search(r'\[\s*\{.*?\}\s*\]', json_match.group(), re.DOTALL)
+                if array_match:
+                    parsed = json.loads(array_match.group())
+                    if isinstance(parsed, list):
+                        for item in parsed:
+                            if isinstance(item, dict) and 'quote' in item:
+                                confirmations.append({
+                                    "quote": str(item.get("quote", ""))[:400],
+                                    "reason": str(item.get("reason", ""))[:400],
+                                    "source": str(item.get("source", "Market Analysis"))[:40],
+                                    "strength": str(item.get("strength", "Medium"))
+                                })
+        except:
+            pass
+    
+    # Third, try to find individual confirmation objects
+    if not confirmations:
+        try:
+            # Find all JSON objects that might be confirmations
+            json_objects = re.findall(r'\{[^{}]*"quote"[^{}]*\}', response_text, re.DOTALL)
+            for obj_str in json_objects:
+                try:
+                    parsed = json.loads(obj_str)
+                    if isinstance(parsed, dict) and 'quote' in parsed:
+                        # Check if it looks like a confirmation (not a contradiction)
+                        quote_lower = str(parsed.get("quote", "")).lower()
+                        if any(word in quote_lower for word in ['support', 'positive', 'growth', 'strong', 'favorable', 'bullish', 'momentum', 'advantage']):
+                            confirmations.append({
+                                "quote": str(parsed.get("quote", ""))[:400],
+                                "reason": str(parsed.get("reason", ""))[:400],
+                                "source": str(parsed.get("source", "Market Analysis"))[:40],
+                                "strength": str(parsed.get("strength", "Medium"))
+                            })
+                except:
+                    continue
+        except:
+            pass
 
-    # Generate default confirmations if needed (from reference)
+    # Generate default confirmations if still empty (but only as last resort)
     if not confirmations:
         confirmations = [
             {
-                "quote": "Strong market fundamentals and improving financial metrics support growth.",
-                "reason": "Fundamental analysis indicates favorable conditions.",
-                "source": "Fundamental Analysis",
+                "quote": "Market analysis indicates potential for this hypothesis based on current conditions.",
+                "reason": "Fundamental and technical factors suggest favorable conditions.",
+                "source": "Market Analysis",
                 "strength": "Medium"
             },
             {
-                "quote": "Technical indicators showing positive momentum.",
-                "reason": "Technical setup suggests upward price movement.",
+                "quote": "Technical indicators and market sentiment support the thesis.",
+                "reason": "Multiple signals align with the hypothesis direction.",
                 "source": "Technical Analysis",
                 "strength": "Medium"
             }

@@ -42,6 +42,9 @@ def get_all_hypotheses_summary() -> List[Dict[str, Any]]:
             "processed_hypothesis": 1, 
             "confidence_score": 1, 
             "synthesis": 1,
+            "contradictions": 1,
+            "confirmations": 1,
+            "status": 1,
             "context.primary_symbol": 1, # Get nested symbol
             "created_at": 1
         }
@@ -50,6 +53,38 @@ def get_all_hypotheses_summary() -> List[Dict[str, Any]]:
     # REMOVED 'async for'
     for doc in cursor:
         doc["_id"] = str(doc["_id"]) # Convert Mongo's ObjectId to a string
+        
+        # Transform data for frontend compatibility
+        # Convert confidence_score (0-1) to confidence percentage (0-100)
+        if "confidence_score" in doc and doc["confidence_score"] is not None:
+            doc["confidence"] = round(doc["confidence_score"] * 100)
+        else:
+            doc["confidence"] = 50  # Default to 50%
+        
+        # Count contradictions and confirmations
+        contradictions_list = doc.get("contradictions", [])
+        confirmations_list = doc.get("confirmations", [])
+        
+        doc["contradictions"] = len(contradictions_list) if isinstance(contradictions_list, list) else 0
+        doc["confirmations"] = len(confirmations_list) if isinstance(confirmations_list, list) else 0
+        
+        # Add detail arrays for frontend
+        doc["contradictions_detail"] = contradictions_list if isinstance(contradictions_list, list) else []
+        doc["confirmations_detail"] = confirmations_list if isinstance(confirmations_list, list) else []
+        
+        # Add title and id for frontend
+        doc["id"] = doc["_id"]
+        doc["title"] = doc.get("processed_hypothesis", "Untitled Hypothesis")
+        
+        # Format lastUpdated
+        if "created_at" in doc and doc["created_at"]:
+            if isinstance(doc["created_at"], datetime):
+                doc["lastUpdated"] = doc["created_at"].strftime("%Y-%m-%d %H:%M")
+            else:
+                doc["lastUpdated"] = "Recently"
+        else:
+            doc["lastUpdated"] = "Recently"
+        
         summaries.append(doc)
         
     return summaries

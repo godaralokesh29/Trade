@@ -68,10 +68,17 @@ class TradeSageOrchestrator:
         
         if agent_name == "hypothesis":
             return f"""
-            Process this trading hypothesis: "{base_hypothesis}"
+            You are a financial analyst. Process and refine this trading hypothesis.
             
-            Rewrite it into a clear, concise, and testable thesis statement.
-            Return *only* the rewritten thesis statement as plain text.
+            **Original Hypothesis:** "{base_hypothesis}"
+            
+            Your task: Rewrite this into a clear, concise, and testable thesis statement.
+            - Make it specific and actionable
+            - Include direction (bullish/bearish/neutral) if implied
+            - Include timeframe if mentioned
+            - Keep it focused and measurable
+            
+            Return ONLY the rewritten thesis statement as plain text. No explanations, no markdown, just the statement.
             """
             
         elif agent_name == "context":
@@ -102,45 +109,65 @@ class TradeSageOrchestrator:
             """
 
         elif agent_name == "contradiction":
-            research_summary = input_data.get('research_data', {}).get('summary', '')
+            research_summary = input_data.get('research_data', {}).get('summary', 'No market data available')
+            context_data = input_data.get('context', {})
+            hypothesis_details = context_data.get('hypothesis_details', {})
+            direction = hypothesis_details.get('direction', 'neutral')
             
             # This agent should return a JSON array
             return f"""
-            Identify contradictions and risk factors for this hypothesis:
-            Hypothesis: "{base_hypothesis}"
+            You are a financial risk analyst. Identify contradictions, risks, and challenges for this trading hypothesis.
             
+            **Hypothesis:** {base_hypothesis}
+            **Direction:** {direction}
             **Market Context:** {research_summary}
 
-            Find 3-5 specific risks, challenges, or contradictory evidence.
+            Your task: Find 3-5 SPECIFIC risks, challenges, or contradictory evidence that could undermine this hypothesis.
+            Look for: market headwinds, competitive threats, regulatory risks, technical weaknesses, fundamental concerns, or opposing market signals.
             
-            You *must* return *only* a valid JSON array of objects:
+            CRITICAL: You MUST return ONLY a valid JSON array. No markdown, no explanations, just pure JSON:
             [
-                {{ "quote": "<The risk>", "reason": "<Why it's a risk>", "source": "<Source>", "strength": "<Medium/High/Low>" }},
-                {{ "quote": "<Another risk>", "reason": "<...>", "source": "<...>", "strength": "<...>" }}
+                {{"quote": "Specific risk or challenge statement", "reason": "Why this contradicts the hypothesis", "source": "Market Analysis", "strength": "High"}},
+                {{"quote": "Another specific risk", "reason": "Explanation", "source": "Technical Analysis", "strength": "Medium"}},
+                {{"quote": "Third risk factor", "reason": "Why it matters", "source": "Fundamental Analysis", "strength": "Medium"}}
             ]
+            
+            If you find fewer than 3 risks, still return at least 2. If you find more, return up to 5.
             """
             
         elif agent_name == "synthesis":
-            research_summary = input_data.get('research_data', {}).get('summary', '')
+            research_summary = input_data.get('research_data', {}).get('summary', 'No market data available')
             contradictions = input_data.get('contradictions', [])
+            context_data = input_data.get('context', {})
+            hypothesis_details = context_data.get('hypothesis_details', {})
+            direction = hypothesis_details.get('direction', 'neutral')
+            
+            contra_summary = f"{len(contradictions)} risk factors identified" if contradictions else "No major risks identified"
             
             return f"""
-            Synthesize a comprehensive investment analysis for this hypothesis:
-            Hypothesis: "{base_hypothesis}"
+            You are a financial analyst synthesizing an investment thesis. Provide a balanced analysis.
             
+            **Hypothesis:** {base_hypothesis}
+            **Direction:** {direction}
             **Market Context:** {research_summary}
-            Risk Factors: {len(contradictions)} identified
+            **Risk Factors:** {contra_summary}
 
-            Provide a balanced analysis. Identify 2-3 supporting confirmations.
+            Your task: 
+            1. Write a brief synthesis analysis (2-3 sentences)
+            2. Identify 3-5 SPECIFIC supporting confirmations - evidence that supports this hypothesis
+            Look for: positive technical indicators, strong fundamentals, favorable market conditions, competitive advantages, growth catalysts, or bullish signals.
             
-            You *must* return *only* a valid JSON object:
+            CRITICAL: You MUST return ONLY a valid JSON object. No markdown, no explanations, just pure JSON:
             {{
-                "analysis": "<Your brief synthesis text>",
+                "analysis": "Brief synthesis text explaining the overall assessment",
                 "confirmations": [
-                    {{ "quote": "<Supporting point>", "reason": "<Why it supports>", "source": "<Source>", "strength": "<Medium/High>" }},
-                    {{ "quote": "<Another point>", "reason": "<...>", "source": "<...>", "strength": "<...>" }}
+                    {{"quote": "Specific supporting evidence", "reason": "Why this supports the hypothesis", "source": "Market Analysis", "strength": "High"}},
+                    {{"quote": "Another supporting point", "reason": "Explanation", "source": "Technical Analysis", "strength": "Medium"}},
+                    {{"quote": "Third confirmation", "reason": "Why it matters", "source": "Fundamental Analysis", "strength": "Medium"}}
                 ]
             }}
+            
+            Return at least 3 confirmations. If you find more, return up to 5.
             """
             
         elif agent_name == "alert":
