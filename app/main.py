@@ -1,28 +1,52 @@
-from fastapi import FastAPI, HTTPException, Body
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
-import uvicorn
-
-# --- App Imports ---
-from app.database.database import connect_to_mongo, close_mongo_connection
+from app.pipeline.orchestrator import orchestrator, TradeSageOrchestrator
 from app.database.crud import (
     create_hypothesis_analysis,
     get_all_hypotheses_summary,
     get_hypothesis_by_id
 )
-from app.pipeline.orchestrator import orchestrator, TradeSageOrchestrator
+from app.database.database import connect_to_mongo, close_mongo_connection
+from fastapi import FastAPI, HTTPException, Body
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import List, Dict, Any, Optional
+import uvicorn
+from app.pipeline.ai_trader import router as ai_router
+
+# --- FastAPI App ---
+app = FastAPI(
+    title="TradeSage API (Gemini + MongoDB)",
+    description="A 6-step agent pipeline for financial hypothesis testing."
+)
+
+# Add the AI trader router
+app.include_router(ai_router)
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"]
+)
+
+# --- App Imports ---
 
 # --- Pydantic Models ---
+
+
 class HypothesisRequest(BaseModel):
     hypothesis: str
+
 
 class HypothesisSummary(BaseModel):
     _id: str
     processed_hypothesis: str
     confidence_score: float
     synthesis: Optional[str] = None
-    created_at: Any 
+    created_at: Any
+
 
 class FullHypothesis(BaseModel):
     _id: str
@@ -39,36 +63,25 @@ class FullHypothesis(BaseModel):
     method: str
     created_at: Any
 
-# --- FastAPI App ---
-app = FastAPI(
-    title="TradeSage API (Gemini + MongoDB)",
-    description="A 6-step agent pipeline for financial hypothesis testing."
-)
-
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # React's default ports
-    allow_credentials=True,
-    allow_methods=["*"],  # Allow all methods
-    allow_headers=["*"],  # Allow all headers
-    expose_headers=["*"]  # Expose all headers
-)
 
 # --- Application Lifecycle Events ---
 
 # This can remain async, as FastAPI supports it
+
+
 @app.on_event("startup")
 async def startup_event():
     """Connects to MongoDB when the app starts."""
     connect_to_mongo()
-    
+
     if orchestrator is None:
         print("--- FATAL: ORCHESTRATOR FAILED TO INITIALIZE ---")
     else:
         print("Application startup complete.")
 
 # This can remain async
+
+
 @app.on_event("shutdown")
 async def shutdown_event():
     """Disconnects from MongoDB when the app shuts down."""
@@ -77,9 +90,11 @@ async def shutdown_event():
 
 # --- API Endpoints ---
 
+
 @app.get("/health", tags=["Status"])
 async def health_check():
     return {"status": "ok", "message": "TradeSage API is running."}
+
 
 @app.post("/process", response_model=FullHypothesis, tags=["Analysis"])
 async def process_hypothesis(request: HypothesisRequest):
@@ -88,26 +103,30 @@ async def process_hypothesis(request: HypothesisRequest):
     and saves the result to the database.
     """
     if orchestrator is None:
-        raise HTTPException(status_code=500, detail="Orchestrator is not initialized.")
+        raise HTTPException(
+            status_code=500, detail="Orchestrator is not initialized.")
 
     try:
         # 1. Run the analysis (this is still async, which is good)
         analysis_data = await orchestrator.process_hypothesis(request.dict())
-        
+
         if analysis_data.get("status") == "error":
-            raise HTTPException(status_code=500, detail=analysis_data.get("error"))
+            raise HTTPException(
+                status_code=500, detail=analysis_data.get("error"))
 
         # 2. Save the full result (REMOVED 'await')
         new_id = create_hypothesis_analysis(analysis_data)
-        
+
         # 3. Add the new DB ID to the response and return it
         analysis_data["_id"] = new_id
-        
+
         return analysis_data
-        
+
     except Exception as e:
         print(f"--- Error in /process endpoint: {e} ---")
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"An unexpected error occurred: {e}")
+
 
 @app.get("/dashboard", response_model=List[HypothesisSummary], tags=["Analysis"])
 async def get_dashboard_summary():
@@ -123,6 +142,7 @@ async def get_dashboard_summary():
         print(f"--- Error in /dashboard endpoint: {e} ---")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/hypothesis/{hypothesis_id}", response_model=FullHypothesis, tags=["Analysis"])
 async def get_full_hypothesis(hypothesis_id: str):
     """
@@ -132,7 +152,8 @@ async def get_full_hypothesis(hypothesis_id: str):
         # REMOVED 'await'
         analysis = get_hypothesis_by_id(hypothesis_id)
         if analysis is None:
-            raise HTTPException(status_code=404, detail="Hypothesis not found.")
+            raise HTTPException(
+                status_code=404, detail="Hypothesis not found.")
         return analysis
     except Exception as e:
         print(f"--- Error in /hypothesis/{hypothesis_id} endpoint: {e} ---")
@@ -142,8 +163,8 @@ async def get_full_hypothesis(hypothesis_id: str):
 if __name__ == "__main__":
     print("Starting TradeSage API server...")
     uvicorn.run(
-        "app.main:app",
+        "app.main:app",  # Updated import path
         host="127.0.0.1",
         port=8000,
-        reload=True 
+        reload=True
     )

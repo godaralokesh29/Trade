@@ -3,3 +3,9 @@ uvicorn[standard]
 google-generativeai
 pymongo
 python-dotenv
+yfinance
+pandas
+numpy
+tensorflow==2.16.1
+joblib
+scikit-learn
