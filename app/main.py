@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Body
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import uvicorn
@@ -42,6 +43,16 @@ class FullHypothesis(BaseModel):
 app = FastAPI(
     title="TradeSage API (Gemini + MongoDB)",
     description="A 6-step agent pipeline for financial hypothesis testing."
+)
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # React's default ports
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
+    expose_headers=["*"]  # Expose all headers
 )
 
 # --- Application Lifecycle Events ---
