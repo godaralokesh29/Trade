@@ -79,6 +79,80 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
     return df.dropna()
 
 
+@router.get("/realtime/{ticker}")
+async def get_realtime(ticker: str = "AAPL"):
+    """Get real-time market data and prediction"""
+    ticker = ticker.upper()
+    try:
+        end = datetime.now()
+
+        # First get historical daily data (this always works)
+        start_hist = end - timedelta(days=180)
+        df_hist = yf.download(ticker, start=start_hist,
+                              end=end, progress=False)
+
+        if df_hist.empty:
+            raise ValueError(f"No data available for {ticker}")
+
+        # Get the last trading day's data
+        df_today = df_hist.tail(1)
+        latest_time = df_hist.index[-1]
+        market_open = False
+
+        # Try to get intraday data if we're during market hours
+        if end.weekday() < 5:  # Monday-Friday
+            try:
+                start = end - timedelta(hours=8)  # Last 8 hours
+                df_intraday = yf.download(
+                    ticker, start=start, end=end, interval='1m', progress=False)
+                if not df_intraday.empty:
+                    df_today = df_intraday
+                    latest_time = df_intraday.index[-1]
+                    market_open = True
+            except Exception:
+                pass  # Fallback to daily data
+
+        # Get latest price and trading info
+        latest_price = float(df_today['Close'].iloc[-1])
+        latest_time = df_today.index[-1]
+
+        # Prepare prediction data
+        df_feat = add_features(df_hist)
+        if len(df_feat) < SEQ_LEN:
+            raise ValueError("Not enough historical data")
+
+        # Get prediction
+        scaled = scaler.transform(df_feat[FINAL_FEATURES].tail(SEQ_LEN))
+        X = scaled.reshape(1, SEQ_LEN, len(FINAL_FEATURES))
+        pred_price = float(model.predict(X, verbose=0)[0][0])
+
+        # Calculate metrics
+        pct_change = (pred_price - latest_price) / latest_price * 100
+        day_change = (
+            latest_price - float(df_today['Open'].iloc[0])) / float(df_today['Open'].iloc[0]) * 100
+
+        return {
+            "ticker": ticker,
+            "timestamp": latest_time.isoformat(),
+            "market_open": market_open,
+            "current_price": round(latest_price, 2),
+            "day_change_pct": round(day_change, 2),
+            "day_high": round(float(df_today['High'].max()), 2),
+            "day_low": round(float(df_today['Low'].min()), 2),
+            "volume": int(df_today['Volume'].sum()),
+            "prediction": {
+                "price": round(pred_price, 2),
+                "change_pct": round(pct_change, 2),
+                "signal": "STRONG_BUY" if pct_change > 5 else
+                "BUY" if pct_change > 2 else
+                "SELL" if pct_change < -2 else
+                "STRONG_SELL" if pct_change < -5 else "HOLD"
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/predict/{ticker}")
 async def predict_ticker(ticker: str = "AAPL"):
     ticker = ticker.upper()
