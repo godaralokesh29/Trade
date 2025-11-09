@@ -162,5 +162,17 @@ class TradeSageAPI {
   }
 }
 
+// Create and export a singleton instance
 const tradeSageAPI = new TradeSageAPI();
-export default tradeSageAPI;
+
+// Export as default to avoid constructor issues
+export default {
+  processHypothesis: (hypothesis) => tradeSageAPI.processHypothesis(hypothesis),
+  getAllHypotheses: () => tradeSageAPI.getAllHypotheses(),
+  getHypothesisById: (id) => tradeSageAPI.getHypothesisById(id),
+  getHypothesisDetail: (id) => tradeSageAPI.getHypothesisDetail(id),
+  getAlerts: () => tradeSageAPI.getAlerts(),
+  markAlertAsRead: (id) => tradeSageAPI.markAlertAsRead(id),
+  healthCheck: () => tradeSageAPI.healthCheck(),
+  getDashboardData: () => tradeSageAPI.getDashboardData(),
+};
