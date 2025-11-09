@@ -8,6 +8,12 @@ from fastapi import APIRouter, HTTPException
 import importlib
 import tensorflow as tf
 from pydantic import BaseModel
+import requests
+from typing import Optional
+
+# === TELEGRAM CONFIG (REPLACE THESE) ===
+TELEGRAM_BOT_TOKEN = "8585071082:AAEDLa99bd72NlTjvZoqa6e00l6TPTixQa0"      # Get from @BotFather
+TELEGRAM_CHAT_ID = "5369865364"          # Your personal chat ID
 
 # === DYNAMIC PATHS (works anywhere) ===
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -49,6 +55,20 @@ def get_sentiment_pipeline():
             tokenizer="yiyanghkust/finbert-tone"
         )
     return _sentiment_pipeline
+
+
+def send_telegram_alert(message: str):
+    """Send alert to Telegram if move is big"""
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "HTML"
+    }
+    try:
+        requests.post(url, data=payload, timeout=5)
+    except:
+        pass  # Silent fail — don't crash API
 
 
 def add_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -131,15 +151,41 @@ async def get_realtime(ticker: str = "AAPL"):
         day_change = (
             latest_price - float(df_today['Open'].iloc[0])) / float(df_today['Open'].iloc[0]) * 100
 
+        # Calculate additional technical indicators
+        rsi = float(df_feat['RSI'].iloc[-1])
+        macd = float(df_feat['MACD'].iloc[-1])
+        ma7 = float(df_feat['MA7'].iloc[-1])
+        ma30 = float(df_feat['MA30'].iloc[-1])
+        bb_high = float(df_feat['BB_high'].iloc[-1])
+        bb_low = float(df_feat['BB_low'].iloc[-1])
+
+        # Determine trend
+        trend = "UPTREND" if ma7 > ma30 else "DOWNTREND" if ma7 < ma30 else "SIDEWAYS"
+
         return {
             "ticker": ticker,
             "timestamp": latest_time.isoformat(),
             "market_open": market_open,
-            "current_price": round(latest_price, 2),
-            "day_change_pct": round(day_change, 2),
-            "day_high": round(float(df_today['High'].max()), 2),
-            "day_low": round(float(df_today['Low'].min()), 2),
-            "volume": int(df_today['Volume'].sum()),
+            "price_data": {
+                "current": round(latest_price, 2),
+                "change_pct": round(day_change, 2),
+                "day_high": round(float(df_today['High'].max().item()), 2),
+                "day_low": round(float(df_today['Low'].min().item()), 2),
+                "volume": int(df_today['Volume'].sum().item()),
+            },
+            "technical_indicators": {
+                "rsi": round(rsi, 2),
+                "macd": round(macd, 2),
+                "moving_averages": {
+                    "ma7": round(ma7, 2),
+                    "ma30": round(ma30, 2)
+                },
+                "bollinger_bands": {
+                    "upper": round(bb_high, 2),
+                    "lower": round(bb_low, 2)
+                },
+                "trend": trend
+            },
             "prediction": {
                 "price": round(pred_price, 2),
                 "change_pct": round(pct_change, 2),
@@ -239,6 +285,25 @@ async def analyze_news(request: NewsAnalysisRequest):
     else:
         explanation += "technical patterns and momentum."
 
+    # Determine signal for Telegram alert
+    signal = "APOCALYPTIC SELL" if pct < -50 else "SELL" if pct < -5 else "BUY" if pct > 5 else "HOLD"
+
+    # === TELEGRAM ALERT ON BIG MOVES ===
+    if abs(pct) > 20:  # >20% move
+        emoji = "🚀" if pct > 0 else "⚠️"
+        alert = f"""
+{emoji} *AI ORACLE ALERT* {emoji}
+
+*TICKER:* <code>{request.ticker}</code>
+*LAST:* ${last_close:.2f}
+*PREDICTED:* ${pred_price:.2f}
+*MOVE:* <b>{pct:+.2f}%</b>
+*SIGNAL:* {signal}
+*REASON:* {explanation.split('.')[0]}.
+*TIME:* {datetime.now().strftime('%Y-%m-%d %H:%M')}
+        """.strip()
+        send_telegram_alert(alert)
+
     return {
         "ticker": request.ticker,
         "user_prompt": request.prompt,
@@ -247,7 +312,7 @@ async def analyze_news(request: NewsAnalysisRequest):
         "last_close": round(last_close, 2),
         "predicted_close": round(pred_price, 2),
         "expected_move_pct": round(pct, 2),
-        "signal": "APOCALYPTIC SELL" if pct < -50 else "SELL" if pct < -5 else "BUY" if pct > 5 else "HOLD",
+        "signal": signal,
         "confidence": confidence,
         "explanation": explanation,
         "timestamp": datetime.now().isoformat()
